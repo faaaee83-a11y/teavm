@@ -32,20 +32,38 @@ jobs:
             MAIN=$(unzip -p libs/app.jar META-INF/MANIFEST.MF | tr -d '\r' | sed -n 's/^Main-Class: *//p' | head -n1)
           fi
           if [ -z "$MAIN" ]; then
-            echo "Main-Class を特定できません。手動実行で main_class を指定してください。"
+            echo "Main-Class を特定できません。手動実行(Run workflow)で main_class を指定してください。"
             exit 1
           fi
           echo "Main-Class = $MAIN"
           echo "MAIN=$MAIN" >> "$GITHUB_ENV"
 
+      - name: Show class file version (診断用)
+        continue-on-error: true
+        run: |
+          echo "--- $MAIN ---"
+          javap -v -cp target/classes "$MAIN" | grep -E "major version|minor version" || true
+          echo "(major 65=Java21, 69=Java25)"
+
       - name: Build with TeaVM
-        run: mvn -B -e process-classes -Dapp.main="$MAIN" 2>&1 | tee build.log
+        shell: bash
+        run: |
+          set -o pipefail
+          mvn -B -e process-classes -Dapp.main="$MAIN" 2>&1 | tee build.log
 
       - name: Show TeaVM errors
         if: failure()
         run: |
           echo "==== Main-Class: $MAIN ===="
           grep -n -i -E "error|not found|unsupported|major version|exception|caused by" build.log | head -n 80
+
+      - name: Check TeaVM output
+        run: |
+          echo "--- target/web ---"
+          find target/web -type f -exec ls -la {} \;
+          JS=$(find target/web -name '*.js' | head -n1)
+          test -n "$JS" -a -s "$JS" || { echo "TeaVM の出力 JS が空か、存在しません"; exit 1; }
+          echo "JS=$JS" >> "$GITHUB_ENV"
 
       - name: Make single index.html
         run: |
@@ -57,11 +75,12 @@ jobs:
             echo '</head><body><pre id="out"></pre>'
             echo '<script>(function(){var o=document.getElementById("out");function w(a){try{o.textContent+=Array.prototype.map.call(a,function(x){return typeof x==="object"?JSON.stringify(x):String(x)}).join(" ")+"\n"}catch(e){}}["log","info","warn","error"].forEach(function(k){var f=console[k];console[k]=function(){w(arguments);f.apply(console,arguments)}});window.addEventListener("error",function(e){w([e.message])});})();</script>'
             echo '<script>'
-            sed 's#</script>#<\\/script>#g' target/web/classes.js
+            sed 's#</script>#<\\/script>#g' "$JS"
             echo '</script>'
             echo '<script>try{main();}catch(e){console.error(String(e));}</script>'
             echo '</body></html>'
           } > dist/index.html
+          ls -la dist
 
       - uses: actions/upload-artifact@v4
         with:
