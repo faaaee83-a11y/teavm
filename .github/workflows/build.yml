@@ -1,22 +1,69 @@
-name: Build TeaVM
+name: Jar to HTML (TeaVM)
+
 on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      main_class:
+        description: "Main class (例: com.example.Main)。空なら MANIFEST の Main-Class を使う"
+        required: false
+        default: ""
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '25'
           cache: maven
-      - run: mvn -B package
-      - run: cp src/main/webapp/index.html target/web/
+
+      - name: Extract jar and detect Main-Class
+        run: |
+          test -f libs/app.jar || { echo "libs/app.jar が見つかりません"; exit 1; }
+          mkdir -p target/classes
+          unzip -q -o libs/app.jar -d target/classes
+          MAIN="${{ github.event.inputs.main_class }}"
+          if [ -z "$MAIN" ]; then
+            MAIN=$(unzip -p libs/app.jar META-INF/MANIFEST.MF | tr -d '\r' | sed -n 's/^Main-Class: *//p' | head -n1)
+          fi
+          if [ -z "$MAIN" ]; then
+            echo "Main-Class を特定できません。手動実行で main_class を指定してください。"
+            exit 1
+          fi
+          echo "Main-Class = $MAIN"
+          echo "MAIN=$MAIN" >> "$GITHUB_ENV"
+
+      - name: Build with TeaVM
+        run: mvn -B -e process-classes -Dapp.main="$MAIN" 2>&1 | tee build.log
+
+      - name: Show TeaVM errors
+        if: failure()
+        run: |
+          echo "==== Main-Class: $MAIN ===="
+          grep -n -i -E "error|not found|unsupported|major version|exception|caused by" build.log | head -n 80
+
+      - name: Make single index.html
+        run: |
+          mkdir -p dist
+          {
+            echo '<!DOCTYPE html><html><head><meta charset="utf-8">'
+            echo '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            echo '<style>body{margin:0;background:#111;color:#eee;font:14px/1.5 ui-monospace,Menlo,monospace}#out{margin:0;padding:12px;white-space:pre-wrap;word-break:break-all}</style>'
+            echo '</head><body><pre id="out"></pre>'
+            echo '<script>(function(){var o=document.getElementById("out");function w(a){try{o.textContent+=Array.prototype.map.call(a,function(x){return typeof x==="object"?JSON.stringify(x):String(x)}).join(" ")+"\n"}catch(e){}}["log","info","warn","error"].forEach(function(k){var f=console[k];console[k]=function(){w(arguments);f.apply(console,arguments)}});window.addEventListener("error",function(e){w([e.message])});})();</script>'
+            echo '<script>'
+            sed 's#</script>#<\\/script>#g' target/web/classes.js
+            echo '</script>'
+            echo '<script>try{main();}catch(e){console.error(String(e));}</script>'
+            echo '</body></html>'
+          } > dist/index.html
+
       - uses: actions/upload-artifact@v4
         with:
           name: web
-          path: target/web/
+          path: dist/index.html
