@@ -5,14 +5,16 @@
   <modelVersion>4.0.0</modelVersion>
 
   <groupId>com.example</groupId>
-  <artifactId>teavm-app</artifactId>
+  <artifactId>jar2html</artifactId>
   <version>1.0</version>
   <packaging>jar</packaging>
 
   <properties>
-    <maven.compiler.release>25</maven.compiler.release>
+    <maven.compiler.release>21</maven.compiler.release>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    <teavm.version>0.15.0</teavm.version> <!-- 最新版は公式で確認 -->
+    <teavm.version>0.15.0</teavm.version>
+    <!-- ワークフローが -Dapp.main=... で上書きします -->
+    <app.main>com.example.Main</app.main>
   </properties>
 
   <dependencies>
@@ -31,11 +33,6 @@
   <build>
     <plugins>
       <plugin>
-        <groupId>org.apache.maven.plugins</groupId>
-        <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.13.0</version>
-      </plugin>
-      <plugin>
         <groupId>org.teavm</groupId>
         <artifactId>teavm-maven-plugin</artifactId>
         <version>${teavm.version}</version>
@@ -44,7 +41,7 @@
             <goals><goal>compile</goal></goals>
             <phase>process-classes</phase>
             <configuration>
-              <mainClass>com.example.Main</mainClass>
+              <mainClass>${app.main}</mainClass>
               <targetDirectory>${project.build.directory}/web</targetDirectory>
               <targetType>JAVASCRIPT</targetType>
               <optimizationLevel>SIMPLE</optimizationLevel>
