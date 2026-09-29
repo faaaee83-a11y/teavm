@@ -1,0 +1,39 @@
+<properties>
+  <maven.compiler.release>25</maven.compiler.release>
+  <teavm.version>0.15.0</teavm.version> <!-- 最新版は公式で確認 -->
+</properties>
+
+<dependencies>
+  <dependency>
+    <groupId>org.teavm</groupId>
+    <artifactId>teavm-classlib</artifactId>
+    <version>${teavm.version}</version>
+  </dependency>
+  <dependency>
+    <groupId>org.teavm</groupId>
+    <artifactId>teavm-jso-apis</artifactId>
+    <version>${teavm.version}</version>
+  </dependency>
+</dependencies>
+
+<build>
+  <plugins>
+    <plugin>
+      <groupId>org.teavm</groupId>
+      <artifactId>teavm-maven-plugin</artifactId>
+      <version>${teavm.version}</version>
+      <executions>
+        <execution>
+          <goals><goal>compile</goal></goals>
+          <phase>process-classes</phase>
+          <configuration>
+            <mainClass>com.example.Main</mainClass>
+            <targetDirectory>${project.build.directory}/web</targetDirectory>
+            <targetType>JAVASCRIPT</targetType>
+            <optimizationLevel>SIMPLE</optimizationLevel>
+          </configuration>
+        </execution>
+      </executions>
+    </plugin>
+  </plugins>
+</build>
